@@ -62,7 +62,7 @@ class BatchCollator(object):
 
         out_tuple = ()
         for items in zip(*batch):
-            if items[0] is None or items[3]:
+            if items[0] is None or items[3] is None:
                 out_tuple += (None,)
             else:
                 out_tuple += (torch.stack(tuple(items), dim=0), )

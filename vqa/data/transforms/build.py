@@ -74,6 +74,13 @@ def build_transforms_second_image(cfg, mode='train'):
     #                                         GaussianBlur(kernel_size=int(0.1 * self.input_shape[0])),
     #                                         transforms.ToTensor()])
 
-
+    transform = T.Compose(
+        [
+            T.Resize(min_size, max_size),
+            T.RandomHorizontalFlip(flip_prob),
+            T.ToTensor(),
+            normalize_transform,
+        ]
+    )
 
     return transform

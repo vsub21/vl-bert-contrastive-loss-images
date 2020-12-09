@@ -140,6 +140,3 @@ cython_debug/
 # vl-bert specific
 data/
 model/
-
-# output images from validation analysis
-VL-BERT15/output/vcr/

@@ -181,7 +181,7 @@ class VQA(Dataset):
         if self.test_mode:
             return ['image', 'boxes', 'im_info', 'question']
         else:
-            return ['image', 'boxes', 'im_info', 'question', 'label']
+            return ['image', 'boxes', 'im_info', 'question', 'label', 'image1', 'boxes1', 'im_info1', 'question1', 'label1', 'index']
 
     def __getitem__(self, index, second_image=False):
         idb = self.database[index]
