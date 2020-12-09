@@ -217,14 +217,20 @@ class VQA(Dataset):
                     image_box_feature = boxes_features.mean(0, keepdim=True)
                 boxes_features = torch.cat((image_box_feature, boxes_features), dim=0)
         im_info = torch.tensor([w0, h0, 1.0, 1.0])
+
         flipped = False
+        resize = False
+        color_jitter = False
+        grayscale = False
+        blur = False
+        cutout = False
 
         # apply second image transformation after initial transformation if necessary
         if second_image and self.transform_second_image is not None:
-            image, boxes, _, im_info, flipped = self.transform_second_image(image, boxes, None, im_info, flipped)
+            image, boxes, _, im_info, flipped = self.transform_second_image(image, boxes, None, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
         # transform image
         elif self.transform is not None:
-            image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped)
+            image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
         
         # clamp boxes
         w = im_info[0].item()

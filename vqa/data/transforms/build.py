@@ -60,29 +60,21 @@ def build_transforms_second_image(cfg, mode='train'):
         flip_prob = cfg.VAL.FLIP_PROB
 
     to_bgr255 = True
+ 
+    # SimCLR Transformations
+    # https://github.com/sthalles/SimCLR/blob/e8a690ae4f4359528cfba6f270a9226e3733b7fa/data_aug/dataset_wrapper.py#L61
+    data_transforms = T.Compose([
+        # first image transformations
+        T.Resize(min_size, max_size),
+        T.RandomHorizontalFlip(flip_prob),
+        # second image transformations
+        T.RandomApply([T.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),
+        T.RandomGrayscale(p=0.2),
+        T.GaussianBlur(kernel_size=(int(0.1 * min_size), int(0.1 * min_size))),
+        T.RandomErasing(),
+        # tensor and normalize
+        T.ToTensor(),
+        T.Normalize(mean=cfg.NETWORK.PIXEL_MEANS, std=cfg.NETWORK.PIXEL_STDS, to_bgr255=to_bgr255),
+    ])
 
-    normalize_transform = T.Normalize(
-        mean=cfg.NETWORK.PIXEL_MEANS, std=cfg.NETWORK.PIXEL_STDS, to_bgr255=to_bgr255
-    )
-
-    # # https://github.com/sthalles/SimCLR/blob/e8a690ae4f4359528cfba6f270a9226e3733b7fa/data_aug/dataset_wrapper.py#L61
-    # color_jitter = transforms.ColorJitter(0.8 * self.s, 0.8 * self.s, 0.8 * self.s, 0.2 * self.s)
-    # data_transforms = transforms.Compose([transforms.RandomResizedCrop(size=self.input_shape[0]),
-    #                                         transforms.RandomHorizontalFlip(),
-    #                                         transforms.RandomApply([color_jitter], p=0.8),
-    #                                         transforms.RandomGrayscale(p=0.2),
-    #                                         GaussianBlur(kernel_size=int(0.1 * self.input_shape[0])),
-    #                                         transforms.ToTensor()])
-
-    transform = T.Compose(
-        [
-            # first image transformations
-            T.Resize(min_size, max_size),
-            T.RandomHorizontalFlip(flip_prob),
-            T.ToTensor(),
-            normalize_transform,
-            # second image transformations
-        ]
-    )
-
-    return transform
+    return data_transforms
