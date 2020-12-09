@@ -227,10 +227,10 @@ class VQA(Dataset):
 
         # apply second image transformation after initial transformation if necessary
         if second_image and self.transform_second_image is not None:
-            image, boxes, _, im_info, flipped = self.transform_second_image(image, boxes, None, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
+            image, boxes, _, im_info, flipped, resize, color_jitter, grayscale, blur, cutout = self.transform_second_image(image, boxes, None, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
         # transform image
         elif self.transform is not None:
-            image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
+            image, boxes, _, im_info, flipped, resize, color_jitter, grayscale, blur, cutout = self.transform(image, boxes, None, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
         
         # clamp boxes
         w = im_info[0].item()

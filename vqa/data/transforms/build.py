@@ -66,14 +66,14 @@ def build_transforms_second_image(cfg, mode='train'):
     data_transforms = T.Compose([
         # first image transformations
         T.Resize(min_size, max_size),
-        T.RandomHorizontalFlip(flip_prob),
+        T.RandomHorizontalFlip(p=flip_prob),
         # second image transformations
         T.RandomApply([T.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),
         T.RandomGrayscale(p=0.2),
-        T.GaussianBlur(kernel_size=(int(0.1 * min_size), int(0.1 * min_size))),
-        T.RandomErasing(),
+        T.RandomGaussianBlur(radius=min_size//2, p=0.5),
         # tensor and normalize
         T.ToTensor(),
+        T.RandomErasing(), # post-tensor transformation in torch
         T.Normalize(mean=cfg.NETWORK.PIXEL_MEANS, std=cfg.NETWORK.PIXEL_STDS, to_bgr255=to_bgr255),
     ])
 

@@ -8,7 +8,15 @@ import numpy as np
 import torch
 import torchvision
 from torchvision.transforms import functional as F
-from PIL import Image
+# from torchvision.transforms import functional_pil as F_pil # available in future version of torchvision
+# from torchvision.transforms import functional_tensor as F_t
+
+from PIL import Image, ImageFilter
+
+# try:
+#     import accimage
+# except ImportError:
+#     accimage = None
 
 # NOTE: VQA doesn't use masks, so any new custom transforms will not modify masks in any way.
 
@@ -18,6 +26,7 @@ class Compose(object):
 
     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
         for t in self.transforms:
+            # print(f'transform t: {t}')
             image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout = t(image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout)
         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
 
@@ -53,54 +62,15 @@ class RandomApply(object):
         return format_string
 
 
-class GaussianBlur(object):
-    def __init__(self, kernel_size, sigma=(0.1, 2.0)):
-        # super().__init__()
-        self.kernel_size = kernel_size
-        for idx, ks in enumerate(self.kernel_size):
-            if ks <= 0 or ks % 2 == 0:
-                if ks > 1:
-                    self.kernel_size[idx] = ks - 1
-                else:
-                    self.kernel_size[idx] = ks + 1
-                raise ValueError("Kernel size value should be an odd and positive number.")
-
-        # if isinstance(sigma, numbers.Number):
-        #     if sigma <= 0:
-        #         raise ValueError("If sigma is a single number, it must be positive.")
-        #     sigma = (sigma, sigma)
-        # elif isinstance(sigma, Sequence) and len(sigma) == 2:
-        #     if not 0. < sigma[0] <= sigma[1]:
-        #         raise ValueError("sigma values should be positive and of the form (min, max).")
-        # else:
-        #     raise ValueError("sigma should be a single number or a list/tuple with length 2.")
-
-        self.sigma = sigma
-
-    @staticmethod
-    def get_params(sigma_min: float, sigma_max: float) -> float:
-        """Choose sigma for random gaussian blurring.
-
-        Args:
-            sigma_min (float): Minimum standard deviation that can be chosen for blurring kernel.
-            sigma_max (float): Maximum standard deviation that can be chosen for blurring kernel.
-
-        Returns:
-            float: Standard deviation to be passed to calculate kernel for gaussian blurring.
-        """
-        return torch.empty(1).uniform_(sigma_min, sigma_max).item()
+class RandomGaussianBlur(object):
+    def __init__(self, radius=5, p=0.5):
+        self.gaussian_filter = ImageFilter.GaussianBlur(radius=radius) # using PIL.ImageFilter.GaussianBlur
+        self.prob = p
 
     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
-        """
-        Args:
-            img (PIL Image or Tensor): image to be blurred.
-
-        Returns:
-            PIL Image or Tensor: Gaussian blurred image
-        """
-        sigma = self.get_params(self.sigma[0], self.sigma[1])
-        image = F.gaussian_blur(image, self.kernel_size, [sigma, sigma])
-
+        if random.random() < self.prob:
+            image = image.filter(self.gaussian_filter)
+            blur = True
         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
 
 
@@ -148,8 +118,8 @@ class Resize(object):
 
 
 class RandomHorizontalFlip(object):
-    def __init__(self, prob=0.5):
-        self.prob = prob
+    def __init__(self, p=0.5):
+        self.prob = p
 
     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
         if random.random() < self.prob:
@@ -202,64 +172,56 @@ class ColorJitter(object):
         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
 
 
-class FixPadding(object):
-    def __init__(self, min_size, max_size, pad=0):
-        self.min_size = min_size
-        self.max_size = max_size
-        self.pad = pad
+# class FixPadding(object):
+#     def __init__(self, min_size, max_size, pad=0):
+#         self.min_size = min_size
+#         self.max_size = max_size
+#         self.pad = pad
 
-    def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
+#     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
 
-        if image is not None:
-            # padding to fixed size for determinacy
-            c, h, w = image.shape
-            if h <= w:
-                h1 = self.min_size
-                w1 = self.max_size
-            else:
-                h1 = self.max_size
-                w1 = self.min_size
-            padded_image = image.new_zeros((c, h1, w1)).fill_(self.pad)
-            padded_image[:, :h, :w] = image
-            image = padded_image
+#         if image is not None:
+#             # padding to fixed size for determinacy
+#             c, h, w = image.shape
+#             if h <= w:
+#                 h1 = self.min_size
+#                 w1 = self.max_size
+#             else:
+#                 h1 = self.max_size
+#                 w1 = self.min_size
+#             padded_image = image.new_zeros((c, h1, w1)).fill_(self.pad)
+#             padded_image[:, :h, :w] = image
+#             image = padded_image
 
-        return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
+#         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
+
 
 class RandomGrayscale(object):
     """Randomly convert image to grayscale with a probability of p (default 0.1).
-    The image can be a PIL Image or a Tensor, in which case it is expected
-    to have [..., 3, H, W] shape, where ... means an arbitrary number of leading
-    dimensions
-
     Args:
         p (float): probability that image should be converted to grayscale.
-
     Returns:
-        PIL Image or Tensor: Grayscale version of the input image with probability p and unchanged
+        PIL Image: Grayscale version of the input image with probability p and unchanged
         with probability (1-p).
         - If input image is 1 channel: grayscale version is 1 channel
         - If input image is 3 channel: grayscale version is 3 channel with r == g == b
-
     """
 
     def __init__(self, p=0.1):
-        # super().__init__()
         self.p = p
 
     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
         """
         Args:
-            img (PIL Image or Tensor): Image to be converted to grayscale.
-
+            img (PIL Image): Image to be converted to grayscale.
         Returns:
-            PIL Image or Tensor: Randomly grayscaled image.
+            PIL Image: Randomly grayscaled image.
         """
-        num_output_channels = F._get_image_num_channels(image)
-        if torch.rand(1) < self.p:
-            image = F.rgb_to_grayscale(image, num_output_channels=num_output_channels)
+        num_output_channels = 1 if image.mode == 'L' else 3
+        if random.random() < self.p:
+            image = F.to_grayscale(image, num_output_channels=num_output_channels)
             grayscale = True
         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
-
 
     def __repr__(self):
         return self.__class__.__name__ + '(p={0})'.format(self.p)
@@ -267,8 +229,7 @@ class RandomGrayscale(object):
 
 class RandomErasing(object):
     """ Randomly selects a rectangle region in an image and erases its pixels.
-    'Random Erasing Data Augmentation' by Zhong et al. See https://arxiv.org/abs/1708.04896
-
+    'Random Erasing Data Augmentation' by Zhong et al. See https://arxiv.org/pdf/1708.04896.pdf
     Args:
          p: probability that the random erasing operation will be performed.
          scale: range of proportion of erased area against input image.
@@ -278,11 +239,9 @@ class RandomErasing(object):
             R, G, B channels respectively.
             If a str of 'random', erasing each pixel with random values.
          inplace: boolean to make this transform inplace. Default set to False.
-
     Returns:
         Erased Image.
-
-    Example:
+    # Examples:
         >>> transform = transforms.Compose([
         >>>   transforms.RandomHorizontalFlip(),
         >>>   transforms.ToTensor(),
@@ -292,21 +251,13 @@ class RandomErasing(object):
     """
 
     def __init__(self, p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0, inplace=False):
-        super().__init__()
-        if not isinstance(value, (numbers.Number, str, tuple, list)):
-            raise TypeError("Argument value should be either a number or str or a sequence")
-        if isinstance(value, str) and value != "random":
-            raise ValueError("If value is str, it should be 'random'")
-        if not isinstance(scale, (tuple, list)):
-            raise TypeError("Scale should be a sequence")
-        if not isinstance(ratio, (tuple, list)):
-            raise TypeError("Ratio should be a sequence")
+        assert isinstance(value, (numbers.Number, str, tuple, list))
         if (scale[0] > scale[1]) or (ratio[0] > ratio[1]):
-            warnings.warn("Scale and ratio should be of kind (min, max)")
+            warnings.warn("range should be of kind (min, max)")
         if scale[0] < 0 or scale[1] > 1:
-            raise ValueError("Scale should be between 0 and 1")
+            raise ValueError("range of scale should be between 0 and 1")
         if p < 0 or p > 1:
-            raise ValueError("Random erasing probability should be between 0 and 1")
+            raise ValueError("range of random erasing probability should be between 0 and 1")
 
         self.p = p
         self.scale = scale
@@ -315,77 +266,173 @@ class RandomErasing(object):
         self.inplace = inplace
 
     @staticmethod
-    def get_params(img, scale, ratio, value=None):
-    #         img: Tensor, scale: Tuple[float, float], ratio: Tuple[float, float], value: Optional[List[float]] = None
-    # ) -> Tuple[int, int, int, int, Tensor]:
+    def get_params(img, scale, ratio, value=0):
         """Get parameters for ``erase`` for a random erasing.
-
         Args:
-            img (Tensor): Tensor image to be erased.
-            scale (tuple or list): range of proportion of erased area against input image.
-            ratio (tuple or list): range of aspect ratio of erased area.
-            value (list, optional): erasing value. If None, it is interpreted as "random"
-                (erasing each pixel with random values). If ``len(value)`` is 1, it is interpreted as a number,
-                i.e. ``value[0]``.
-
+            img (Tensor): Tensor image of size (C, H, W) to be erased.
+            scale: range of proportion of erased area against input image.
+            ratio: range of aspect ratio of erased area.
         Returns:
             tuple: params (i, j, h, w, v) to be passed to ``erase`` for random erasing.
         """
-        img_c, img_h, img_w = img.shape[-3], img.shape[-2], img.shape[-1]
+        img_c, img_h, img_w = img.shape
         area = img_h * img_w
 
         for _ in range(10):
-            erase_area = area * torch.empty(1).uniform_(scale[0], scale[1]).item()
-            aspect_ratio = torch.empty(1).uniform_(ratio[0], ratio[1]).item()
+            erase_area = random.uniform(scale[0], scale[1]) * area
+            aspect_ratio = random.uniform(ratio[0], ratio[1])
 
             h = int(round(math.sqrt(erase_area * aspect_ratio)))
             w = int(round(math.sqrt(erase_area / aspect_ratio)))
-            if not (h < img_h and w < img_w):
-                continue
 
-            if value is None:
-                v = torch.empty([img_c, h, w], dtype=torch.float32).normal_()
-            else:
-                v = torch.tensor(value)[:, None, None]
-
-            i = torch.randint(0, img_h - h + 1, size=(1, )).item()
-            j = torch.randint(0, img_w - w + 1, size=(1, )).item()
-            return i, j, h, w, v
+            if h < img_h and w < img_w:
+                i = random.randint(0, img_h - h)
+                j = random.randint(0, img_w - w)
+                if isinstance(value, numbers.Number):
+                    v = value
+                elif isinstance(value, torch._six.string_classes):
+                    v = torch.empty([img_c, h, w], dtype=torch.float32).normal_()
+                elif isinstance(value, (list, tuple)):
+                    v = torch.tensor(value, dtype=torch.float32).view(-1, 1, 1).expand(-1, h, w)
+                return i, j, h, w, v
 
         # Return original image
         return 0, 0, img_h, img_w, img
 
-
     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
         """
         Args:
-            img (Tensor): Tensor image to be erased.
-
+            img (Tensor): Tensor image of size (C, H, W) to be erased.
         Returns:
             img (Tensor): Erased Tensor image.
         """
-        if torch.rand(1) < self.p:
-
-            # cast self.value to script acceptable type
-            if isinstance(self.value, (int, float)):
-                value = [self.value, ]
-            elif isinstance(self.value, str):
-                value = None
-            elif isinstance(self.value, tuple):
-                value = list(self.value)
-            else:
-                value = self.value
-
-            if value is not None and not (len(value) in (1, image.shape[-3])):
-                raise ValueError(
-                    "If value is a sequence, it should have either a single value or "
-                    "{} (number of input channels)".format(image.shape[-3])
-                )
-
-            x, y, h, w, v = self.get_params(image, scale=self.scale, ratio=self.ratio, value=value)
+        if random.uniform(0, 1) < self.p:
+            x, y, h, w, v = self.get_params(image, scale=self.scale, ratio=self.ratio, value=self.value)
             image = F.erase(image, x, y, h, w, v, self.inplace)
             cutout = True
         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
+
+# class RandomErasing(object):
+#     """ Randomly selects a rectangle region in an image and erases its pixels.
+#     'Random Erasing Data Augmentation' by Zhong et al. See https://arxiv.org/abs/1708.04896
+
+#     Args:
+#          p: probability that the random erasing operation will be performed.
+#          scale: range of proportion of erased area against input image.
+#          ratio: range of aspect ratio of erased area.
+#          value: erasing value. Default is 0. If a single int, it is used to
+#             erase all pixels. If a tuple of length 3, it is used to erase
+#             R, G, B channels respectively.
+#             If a str of 'random', erasing each pixel with random values.
+#          inplace: boolean to make this transform inplace. Default set to False.
+
+#     Returns:
+#         Erased Image.
+
+#     Example:
+#         >>> transform = transforms.Compose([
+#         >>>   transforms.RandomHorizontalFlip(),
+#         >>>   transforms.ToTensor(),
+#         >>>   transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+#         >>>   transforms.RandomErasing(),
+#         >>> ])
+#     """
+
+#     def __init__(self, p=0.5, scale=(0.02, 0.33), ratio=(0.3, 3.3), value=0, inplace=False):
+#         super().__init__()
+#         if not isinstance(value, (numbers.Number, str, tuple, list)):
+#             raise TypeError("Argument value should be either a number or str or a sequence")
+#         if isinstance(value, str) and value != "random":
+#             raise ValueError("If value is str, it should be 'random'")
+#         if not isinstance(scale, (tuple, list)):
+#             raise TypeError("Scale should be a sequence")
+#         if not isinstance(ratio, (tuple, list)):
+#             raise TypeError("Ratio should be a sequence")
+#         if (scale[0] > scale[1]) or (ratio[0] > ratio[1]):
+#             warnings.warn("Scale and ratio should be of kind (min, max)")
+#         if scale[0] < 0 or scale[1] > 1:
+#             raise ValueError("Scale should be between 0 and 1")
+#         if p < 0 or p > 1:
+#             raise ValueError("Random erasing probability should be between 0 and 1")
+
+#         self.p = p
+#         self.scale = scale
+#         self.ratio = ratio
+#         self.value = value
+#         self.inplace = inplace
+
+#     @staticmethod
+#     def get_params(img, scale, ratio, value=None):
+#     #         img: Tensor, scale: Tuple[float, float], ratio: Tuple[float, float], value: Optional[List[float]] = None
+#     # ) -> Tuple[int, int, int, int, Tensor]:
+#         """Get parameters for ``erase`` for a random erasing.
+
+#         Args:
+#             img (Tensor): Tensor image to be erased.
+#             scale (tuple or list): range of proportion of erased area against input image.
+#             ratio (tuple or list): range of aspect ratio of erased area.
+#             value (list, optional): erasing value. If None, it is interpreted as "random"
+#                 (erasing each pixel with random values). If ``len(value)`` is 1, it is interpreted as a number,
+#                 i.e. ``value[0]``.
+
+#         Returns:
+#             tuple: params (i, j, h, w, v) to be passed to ``erase`` for random erasing.
+#         """
+#         img_c, img_h, img_w = img.shape[-3], img.shape[-2], img.shape[-1]
+#         area = img_h * img_w
+
+#         for _ in range(10):
+#             erase_area = area * torch.empty(1).uniform_(scale[0], scale[1]).item()
+#             aspect_ratio = torch.empty(1).uniform_(ratio[0], ratio[1]).item()
+
+#             h = int(round(math.sqrt(erase_area * aspect_ratio)))
+#             w = int(round(math.sqrt(erase_area / aspect_ratio)))
+#             if not (h < img_h and w < img_w):
+#                 continue
+
+#             if value is None:
+#                 v = torch.empty([img_c, h, w], dtype=torch.float32).normal_()
+#             else:
+#                 v = torch.tensor(value)[:, None, None]
+
+#             i = torch.randint(0, img_h - h + 1, size=(1, )).item()
+#             j = torch.randint(0, img_w - w + 1, size=(1, )).item()
+#             return i, j, h, w, v
+
+#         # Return original image
+#         return 0, 0, img_h, img_w, img
+
+
+#     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
+#         """
+#         Args:
+#             img (Tensor): Tensor image to be erased.
+
+#         Returns:
+#             img (Tensor): Erased Tensor image.
+#         """
+#         if torch.rand(1) < self.p:
+
+#             # cast self.value to script acceptable type
+#             if isinstance(self.value, (int, float)):
+#                 value = [self.value, ]
+#             elif isinstance(self.value, str):
+#                 value = None
+#             elif isinstance(self.value, tuple):
+#                 value = list(self.value)
+#             else:
+#                 value = self.value
+
+#             if value is not None and not (len(value) in (1, image.shape[-3])):
+#                 raise ValueError(
+#                     "If value is a sequence, it should have either a single value or "
+#                     "{} (number of input channels)".format(image.shape[-3])
+#                 )
+
+#             x, y, h, w, v = self.get_params(image, scale=self.scale, ratio=self.ratio, value=value)
+#             image = F.erase(image, x, y, h, w, v, self.inplace)
+#             cutout = True
+#         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
 
 
 # class RandomResizedCrop(torch.nn.Module):
@@ -503,6 +550,112 @@ class RandomErasing(object):
 #         format_string += ', ratio={0}'.format(tuple(round(r, 4) for r in self.ratio))
 #         format_string += ', interpolation={0})'.format(interpolate_str)
 #         return format_string
+#
+## class RandomGrayscale(object):
+#     """Randomly convert image to grayscale with a probability of p (default 0.1).
+#     The image can be a PIL Image or a Tensor, in which case it is expected
+#     to have [..., 3, H, W] shape, where ... means an arbitrary number of leading
+#     dimensions
 
+#     Args:
+#         p (float): probability that image should be converted to grayscale.
 
+#     Returns:
+#         PIL Image or Tensor: Grayscale version of the input image with probability p and unchanged
+#         with probability (1-p).
+#         - If input image is 1 channel: grayscale version is 1 channel
+#         - If input image is 3 channel: grayscale version is 3 channel with r == g == b
 
+#     """
+
+#     def __init__(self, p=0.1):
+#         # super().__init__()
+#         self.p = p
+
+#     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
+#         """
+#         Args:
+#             img (PIL Image or Tensor): Image to be converted to grayscale.
+
+#         Returns:
+#             PIL Image or Tensor: Randomly grayscaled image.
+#         """
+#         num_output_channels = self._get_image_num_channels(image) # from future version of torchvision
+#         if torch.rand(1) < self.p:
+#             image = F.rgb_to_grayscale(image, num_output_channels=num_output_channels)
+#             grayscale = True
+#         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
+
+#     def _get_image_num_channels(self, img):
+#         if isinstance(img, torch.Tensor):
+#             return F_t._get_image_num_channels(img)
+
+#         return self._get_image_num_channels(img) # F_pil (functional_pil) does not exist in this version of torchvision
+
+#     def _get_image_num_channels(self, img):
+#         if self._is_pil_image(img):
+#             return 1 if img.mode == 'L' else 3
+#         raise TypeError("Unexpected type {}".format(type(img)))
+
+#     def _is_pil_image(self, img):
+#         if accimage is not None:
+#             return isinstance(img, (Image.Image, accimage.Image))
+#         else:
+#             return isinstance(img, Image.Image)
+
+#     def __repr__(self):
+#         return self.__class__.__name__ + '(p={0})'.format(self.p)
+#
+#
+# class GaussianBlur(object):
+#     def __init__(self, kernel_size, sigma=(0.1, 2.0)):
+#         # super().__init__()
+#         self.kernel_size = list(kernel_size)
+
+#         for idx, ks in enumerate(self.kernel_size):
+#             if ks <= 0 or ks % 2 == 0:
+#                 if ks > 1:
+#                     self.kernel_size[idx] = ks - 1
+#                 else:
+#                     self.kernel_size[idx] = ks + 1
+#                 # raise ValueError("Kernel size value should be an odd and positive number.")
+
+#         self.kernel_size = tuple(kernel_size)
+
+#         # if isinstance(sigma, numbers.Number):
+#         #     if sigma <= 0:
+#         #         raise ValueError("If sigma is a single number, it must be positive.")
+#         #     sigma = (sigma, sigma)
+#         # elif isinstance(sigma, Sequence) and len(sigma) == 2:
+#         #     if not 0. < sigma[0] <= sigma[1]:
+#         #         raise ValueError("sigma values should be positive and of the form (min, max).")
+#         # else:
+#         #     raise ValueError("sigma should be a single number or a list/tuple with length 2.")
+
+#         self.sigma = sigma
+
+#     @staticmethod
+#     def get_params(sigma_min: float, sigma_max: float) -> float:
+#         """Choose sigma for random gaussian blurring.
+
+#         Args:
+#             sigma_min (float): Minimum standard deviation that can be chosen for blurring kernel.
+#             sigma_max (float): Maximum standard deviation that can be chosen for blurring kernel.
+
+#         Returns:
+#             float: Standard deviation to be passed to calculate kernel for gaussian blurring.
+#         """
+#         return torch.empty(1).uniform_(sigma_min, sigma_max).item()
+
+#     def __call__(self, image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout):
+#         """
+#         Args:
+#             img (PIL Image or Tensor): image to be blurred.
+
+#         Returns:
+#             PIL Image or Tensor: Gaussian blurred image
+#         """
+#         sigma = self.get_params(self.sigma[0], self.sigma[1])
+#         image = F.gaussian_blur(image, self.kernel_size, [sigma, sigma])
+
+#         return image, boxes, masks, im_info, flipped, resize, color_jitter, grayscale, blur, cutout
