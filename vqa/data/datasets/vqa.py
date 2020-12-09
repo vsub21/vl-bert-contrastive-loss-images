@@ -27,7 +27,7 @@ FIELDNAMES = ['image_id', 'image_w', 'image_h', 'num_boxes', 'boxes', 'features'
 class VQA(Dataset):
     def __init__(self, image_set, root_path, data_path, answer_vocab_file, use_imdb=True,
                  with_precomputed_visual_feat=False, boxes="36",
-                 transform=None, test_mode=False,
+                 transform=None, transform_second_image=None, test_mode=False,
                  zip_mode=False, cache_mode=False, cache_db=True, ignore_db_cache=True,
                  tokenizer=None, pretrained_model_name=None,
                  add_image_as_a_box=False, mask_size=(14, 14),
@@ -39,6 +39,7 @@ class VQA(Dataset):
         :param root_path: root path to cache database loaded from annotation file
         :param data_path: path to vcr dataset
         :param transform: transform
+        :param transform_second_image: transform for second image in siamese network
         :param test_mode: test mode means no labels available
         :param zip_mode: reading images and metadata in zip archive
         :param cache_mode: cache whole dataset to RAM first, then __getitem__ read them from RAM
@@ -152,6 +153,7 @@ class VQA(Dataset):
                                os.path.join(data_path, coco_dataset[iset][1]))
                               for iset in self.image_sets]
         self.transform = transform
+        self.transform_second_image = transform_second_image
         self.zip_mode = zip_mode
         self.cache_mode = cache_mode
         self.cache_db = cache_db
@@ -181,7 +183,7 @@ class VQA(Dataset):
         else:
             return ['image', 'boxes', 'im_info', 'question', 'label']
 
-    def __getitem__(self, index):
+    def __getitem__(self, index, second_image=False):
         idb = self.database[index]
 
         # image, boxes, im_info
@@ -216,8 +218,14 @@ class VQA(Dataset):
                 boxes_features = torch.cat((image_box_feature, boxes_features), dim=0)
         im_info = torch.tensor([w0, h0, 1.0, 1.0])
         flipped = False
+
+        # transform image
         if self.transform is not None:
             image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped)
+        
+        # apply second image transformation after initial transformation if necessary
+        if second_image and self.transform_second_image is not None:
+            image, boxes, _, im_info, flipped = self.transform_second_image(image, boxes, None, im_info, flipped)
 
         # clamp boxes
         w = im_info[0].item()
@@ -254,10 +262,12 @@ class VQA(Dataset):
 
         if self.test_mode:
             return image, boxes, im_info, q_ids
-        else:
-            # print([(self.answer_vocab[i], p.item()) for i, p in enumerate(label) if p.item() != 0])
+        elif second_image: # second image
             return image, boxes, im_info, q_ids, label
-
+        else: # first image
+            image1, boxed1, im_info1, q_ids1, label1 = self.__getitem__(index, second_image=True) # get second image
+            return image, boxes, im_info, q_ids, label, image1, boxed1, im_info1, q_ids1, label1, index
+            
     @staticmethod
     def flip_tokens(tokens, verbose=True):
         changed = False

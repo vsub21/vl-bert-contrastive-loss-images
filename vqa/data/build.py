@@ -2,7 +2,7 @@ import torch.utils.data
 
 from .datasets import *
 from . import samplers
-from .transforms.build import build_transforms
+from .transforms.build import build_transforms, build_transforms_second_image
 from .collate_batch import BatchCollator
 import pprint
 
@@ -66,6 +66,7 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
         num_workers = cfg.NUM_WORKERS_PER_GPU * num_gpu
 
     transform = build_transforms(cfg, mode)
+    transform_second_image = build_transforms_second_image(cfg, mode)
 
     if dataset is None:
 
@@ -75,7 +76,7 @@ def make_dataloader(cfg, dataset=None, mode='train', distributed=False, num_repl
                                 boxes=cfg.DATASET.BOXES,
                                 answer_vocab_file=cfg.DATASET.ANSWER_VOCAB_FILE,
                                 root_path=cfg.DATASET.ROOT_PATH, data_path=cfg.DATASET.DATASET_PATH,
-                                test_mode=(mode == 'test'), transform=transform,
+                                test_mode=(mode == 'test'), transform=transform, transform_second_image=transform_second_image,
                                 zip_mode=cfg.DATASET.ZIP_MODE, cache_mode=cfg.DATASET.CACHE_MODE,
                                 cache_db=True if (rank is None or rank == 0) else False,
                                 ignore_db_cache=cfg.DATASET.IGNORE_DB_CACHE,
