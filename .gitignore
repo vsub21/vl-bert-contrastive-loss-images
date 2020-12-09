@@ -138,5 +138,5 @@ dmypy.json
 cython_debug/
 
 # vl-bert specific
-data/
+data/coco/
 model/

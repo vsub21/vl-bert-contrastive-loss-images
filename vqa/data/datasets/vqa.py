@@ -219,14 +219,13 @@ class VQA(Dataset):
         im_info = torch.tensor([w0, h0, 1.0, 1.0])
         flipped = False
 
-        # transform image
-        if self.transform is not None:
-            image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped)
-        
         # apply second image transformation after initial transformation if necessary
         if second_image and self.transform_second_image is not None:
             image, boxes, _, im_info, flipped = self.transform_second_image(image, boxes, None, im_info, flipped)
-
+        # transform image
+        elif self.transform is not None:
+            image, boxes, _, im_info, flipped = self.transform(image, boxes, None, im_info, flipped)
+        
         # clamp boxes
         w = im_info[0].item()
         h = im_info[1].item()

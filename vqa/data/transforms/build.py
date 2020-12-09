@@ -76,10 +76,12 @@ def build_transforms_second_image(cfg, mode='train'):
 
     transform = T.Compose(
         [
+            # first image transformations
             T.Resize(min_size, max_size),
             T.RandomHorizontalFlip(flip_prob),
             T.ToTensor(),
             normalize_transform,
+            # second image transformations
         ]
     )
 
