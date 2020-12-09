@@ -1,4 +1,5 @@
 from . import transforms as T
+import torchvision.transforms as transforms
 
 
 def build_transforms(cfg, mode='train'):
@@ -64,23 +65,15 @@ def build_transforms_second_image(cfg, mode='train'):
         mean=cfg.NETWORK.PIXEL_MEANS, std=cfg.NETWORK.PIXEL_STDS, to_bgr255=to_bgr255
     )
 
-    # transform = T.Compose(
-    #     [
-    #         T.Resize(min_size, max_size),
-    #         T.RandomHorizontalFlip(flip_prob),
-    #         T.ToTensor(),
-    #         normalize_transform,
-    #         T.FixPadding(min_size, max_size, pad=0)
-    #     ]
-    # )
+    # # https://github.com/sthalles/SimCLR/blob/e8a690ae4f4359528cfba6f270a9226e3733b7fa/data_aug/dataset_wrapper.py#L61
+    # color_jitter = transforms.ColorJitter(0.8 * self.s, 0.8 * self.s, 0.8 * self.s, 0.2 * self.s)
+    # data_transforms = transforms.Compose([transforms.RandomResizedCrop(size=self.input_shape[0]),
+    #                                         transforms.RandomHorizontalFlip(),
+    #                                         transforms.RandomApply([color_jitter], p=0.8),
+    #                                         transforms.RandomGrayscale(p=0.2),
+    #                                         GaussianBlur(kernel_size=int(0.1 * self.input_shape[0])),
+    #                                         transforms.ToTensor()])
 
-    transform = T.Compose(
-        [
-            T.Resize(min_size, max_size),
-            T.RandomHorizontalFlip(flip_prob),
-            T.ToTensor(),
-            normalize_transform,
-        ]
-    )
+
 
     return transform

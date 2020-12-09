@@ -28,6 +28,7 @@ class FastRCNN(nn.Module):
         self.final_dim = final_dim
         self.image_feat_precomputed = config.NETWORK.IMAGE_FEAT_PRECOMPUTED
         if self.image_feat_precomputed:
+            print("Is Precomputed Features")
             if config.NETWORK.IMAGE_SEMANTIC:
                 self.object_embed = torch.nn.Embedding(num_embeddings=81, embedding_dim=128)
             else:

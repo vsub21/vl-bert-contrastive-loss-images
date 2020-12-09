@@ -181,7 +181,8 @@ class ResNetVLBERT(Module):
                       ):
         ###########################################
         positive_output, positive_loss = self.train_forward_single(image, boxes, im_info, question, label)
-        print(index)
+
+        # print(index)
         if index[0][7] != 1: 
             return positive_output, positive_loss
         else: 
