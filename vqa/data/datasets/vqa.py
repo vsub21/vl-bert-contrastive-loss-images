@@ -176,6 +176,8 @@ class VQA(Dataset):
         self.database = self.load_annotations()
 
         # Randomly sample 10% of data
+        random.seed(1234)
+
         frac = 0.1
         len_database = len(self.database)
         for _ in range(20):
