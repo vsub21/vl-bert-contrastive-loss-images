@@ -280,6 +280,8 @@ class ResNetVLBERT(Module):
                           boxes1,
                           im_info1,
                           question1,
+                          label1,
+                          index
                           ):
 
         ###########################################
