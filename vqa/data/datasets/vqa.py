@@ -10,6 +10,7 @@ import sys
 import time
 import pprint
 import logging
+import random
 
 import torch
 from torch.utils.data import Dataset
@@ -173,6 +174,20 @@ class VQA(Dataset):
             self.zipreader = ZipReader()
 
         self.database = self.load_annotations()
+
+        # Randomly sample 10% of data
+        frac = 0.1
+        len_database = len(self.database)
+        for _ in range(20):
+            print(f'OLD LENGTH OF DATABASE: {len(self.database)}')
+
+        for _ in range(20):
+            print(f'RANDOMLY SAMPLING {frac * 100}% OF DATA ({int(frac * len_database)} SAMPLES)')
+        self.database = random.sample(self.database, int(frac * len_database))
+
+        for _ in range(20):
+            print(f'NEW LENGTH OF DATABASE: {len(self.database)}')
+
         if self.aspect_grouping:
             self.group_ids = self.group_aspect(self.database)
 
